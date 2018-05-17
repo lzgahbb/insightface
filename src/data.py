@@ -1,3 +1,4 @@
+# THIS FILE IS FOR EXPERIMENTS, USE image_iter.py FOR NORMAL IMAGE LOADING.
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -59,7 +60,7 @@ class FaceImageIter(io.DataIter):
                  path_imgrec = None,
                  shuffle=False, aug_list=None, mean = None,
                  rand_mirror = False, cutoff = 0,
-                 c2c_threshold = 0.0, output_c2c = 0, c2c_mode = -10,
+                 c2c_threshold = 0.0, output_c2c = 0, c2c_mode = -10, limit = 0,
                  ctx_num = 0, images_per_identity = 0, data_extra = None, hard_mining = False, 
                  triplet_params = None, coco_mode = False,
                  mx_model = None,
@@ -187,6 +188,27 @@ class FaceImageIter(io.DataIter):
               print('id2range', len(self.id2range))
               print(len(self.idx2cos), len(self.idx2meancos), len(self.idx2flag))
               print('c2c_stat', c2c_stat)
+              if limit>0 and limit<len(self.imgidx):
+                random.seed(727)
+                prob = float(limit)/len(self.imgidx)
+                new_imgidx = []
+                new_ids = 0
+                for identity in self.seq_identity:
+                  s = self.imgrec.read_idx(identity)
+                  header, _ = recordio.unpack(s)
+                  a,b = int(header.label[0]), int(header.label[1])
+                  found = False
+                  for _idx in xrange(a,b):
+                    if random.random()<prob:
+                      found = True
+                      new_imgidx.append(_idx)
+                  if found:
+                    new_ids+=1
+                self.imgidx = new_imgidx
+                print('new ids', new_ids)
+                random.seed(None)
+                #random.Random(727).shuffle(self.imgidx)
+                #self.imgidx = self.imgidx[0:limit]
             else:
               self.imgidx = list(self.imgrec.keys)
             if shuffle:
@@ -749,11 +771,34 @@ class FaceImageIter(io.DataIter):
               header, img = recordio.unpack(s)
               label = header.label
               if self.output_c2c:
-                #v = self.idx2meancos[idx]
-                v = 0.5
                 count = self.idx2flag[idx]
-                if count>=self.output_c2c:
-                  v = 0.4
+                if self.output_c2c==1:
+                  v = np.random.uniform(0.4, 0.5)
+                elif self.output_c2c==2:
+                  v = np.random.uniform(0.4, 0.5)
+                  if count>=self.output_c2c:
+                    v = np.random.uniform(0.3, 0.4)
+                elif self.output_c2c==3:
+                  v = (9.5 - math.log(2.0+count))/10.0
+                  v = min(max(v, 0.3), 0.5)
+                elif self.output_c2c==4:
+                  mu = 0.0
+                  sigma = 0.1
+                  mrange = [0.4,0.5]
+                  v = numpy.random.normal(mu, sigma)
+                  v = math.abs(v)*-1.0+mrange[1]
+                  v = max(v, mrange[0])
+                elif self.output_c2c==5:
+                  v = np.random.uniform(0.41, 0.51)
+                  if count>=175:
+                    v = np.random.uniform(0.37, 0.47)
+                elif self.output_c2c==6:
+                  v = np.random.uniform(0.41, 0.51)
+                  if count>=175:
+                    v = np.random.uniform(0.38, 0.48)
+                else:
+                  assert False
+
                 label = [label, v]
               else:
                 if not isinstance(label, numbers.Number):
